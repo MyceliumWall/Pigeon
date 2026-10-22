@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spinning pigeon</title>
+<style>
+:root{--bg1:#e9edf1;--bg2:#c9d1d9;--fg:#27303a;--mute:#5d6975;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#2a323b;--bg2:#161b21;--fg:#eef1f4;--mute:#9aa6b2}}
+:root[data-theme="dark"]{--bg1:#2a323b;--bg2:#161b21;--fg:#eef1f4;--mute:#9aa6b2}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(ellipse at 50% 40%,var(--bg1),var(--bg2));color:var(--fg);font-family:Georgia,"Times New Roman",serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.cap{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);text-align:center;pointer-events:none}
+.cap h1{font-size:1.4rem;font-weight:400;margin:0;letter-spacing:.02em}
+.cap p{margin:4px 0 0;font-size:.85rem;color:var(--mute);font-style:italic}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="cap"><h1>Columba livia</h1><p>Drag to turn it around</p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(35,1,0.1,50);
+camera.position.set(0,1.6,8.2);camera.lookAt(0,0.6,0);
+scene.add(new THREE.HemisphereLight(0xffffff,0x667788,0.9));
+const key=new THREE.DirectionalLight(0xffffff,0.9);key.position.set(4,6,5);scene.add(key);
+const rim=new THREE.DirectionalLight(0x9fc4ff,0.4);rim.position.set(-5,2,-4);scene.add(rim);
+
+const M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85,metalness:0},o));
+const ell=(r,sx,sy,sz,mat,x,y,z)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(r,32,24),mat);m.scale.set(sx,sy,sz);m.position.set(x,y,z);return m;};
+
+const pigeon=new THREE.Group();
+const grey=M(0x8f969e), dark=M(0x4b5159), light=M(0xb4bac1), pink=M(0xc2566b,{roughness:.7});
+
+// body + chest
+pigeon.add(ell(1,1.35,.9,.85,grey,0,.9,0));
+pigeon.add(ell(.75,1,1,.95,light,.85,1.0,0));
+
+// wings with dark bars
+[-1,1].forEach(s=>{
+  const w=ell(1,1.3,.5,.14,M(0x7b828b),-.15,1.05,s*.74);w.rotation.z=-.12;w.rotation.y=s*-.06;pigeon.add(w);
+  [-.55,-.15].forEach(px=>{const b=ell(1,.07,.46,.15,dark,px,1.06,s*.745);b.rotation.z=-.12;pigeon.add(b);});
+  const tip=ell(1,.5,.12,.14,dark,-1.15,.8,s*.72);tip.rotation.z=-.12;pigeon.add(tip);
+});
+
+// tail
+const tail=new THREE.Mesh(new THREE.BoxGeometry(1.2,.07,.62),M(0x6e757e));
+tail.position.set(-1.75,.72,0);tail.rotation.z=.22;pigeon.add(tail);
+const band=new THREE.Mesh(new THREE.BoxGeometry(.2,.075,.63),dark);
+band.position.set(-2.28,.63,0);band.rotation.z=.22;pigeon.add(band);
+
+// iridescent neck: vertex colours blend green and violet
+const neckGeo=new THREE.SphereGeometry(.46,32,24);
+const col=[],g=new THREE.Color(0x2fa58a),v=new THREE.Color(0x8b4fb0),gr=new THREE.Color(0x7d848c),tmp=new THREE.Color();
+const p=neckGeo.attributes.position;
+for(let i=0;i<p.count;i++){
+  const y=p.getY(i)/.46,z=p.getZ(i)/.46;
+  tmp.copy(y>.5?gr:g).lerp(v,THREE.MathUtils.clamp((.1-y)*1.6+Math.abs(z)*.25,0,1));
+  if(y>.55)tmp.copy(gr);
+  col.push(tmp.r,tmp.g,tmp.b);
+}
+neckGeo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+
+// head group (bobs like a walking pigeon)
+const head=new THREE.Group();
+const neck=new THREE.Mesh(neckGeo,M(0xffffff,{vertexColors:true,roughness:.35,metalness:.25}));
+neck.scale.set(1,1.25,1.05);neck.position.set(1.28,1.5,0);head.add(neck);
+head.add(ell(.34,1.1,1,.95,M(0x7d848c),1.52,1.9,0));
+const beak=new THREE.Mesh(new THREE.ConeGeometry(.075,.34,16),M(0x3b3f45));
+beak.rotation.z=-Math.PI/2;beak.position.set(1.97,1.86,0);head.add(beak);
+head.add(ell(.09,1.3,.8,1,M(0xf2f2ee),1.84,1.93,0));
+[-1,1].forEach(s=>{
+  head.add(ell(.085,1,1,1,M(0xf08a1c,{roughness:.4}),1.66,1.98,s*.24));
+  head.add(ell(.045,1,1,1,M(0x0a0a0a,{roughness:.2}),1.7,1.99,s*.29));
+});
+pigeon.add(head);
+
+// legs and feet
+[-1,1].forEach(s=>{
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.045,.05,.8,12),pink);
+  leg.position.set(.2,0,s*.32);pigeon.add(leg);
+  [-.18,.0,.18].forEach(a=>{
+    const t=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.38,8),pink);
+    t.rotation.z=Math.PI/2;t.rotation.y=a*2;t.position.set(.2+.17*Math.cos(a*2),-.4,s*.32+.17*Math.sin(a*2));pigeon.add(t);
+  });
+  const back=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.25,8),pink);
+  back.rotation.z=Math.PI/2;back.position.set(.05,-.4,s*.32);pigeon.add(back);
+});
+
+pigeon.position.x=-.1;
+const spin=new THREE.Group();spin.add(pigeon);scene.add(spin);
+
+// soft ground shadow
+const cv=document.createElement('canvas');cv.width=cv.height=128;
+const cx=cv.getContext('2d'),gd=cx.createRadialGradient(64,64,4,64,64,64);
+gd.addColorStop(0,'rgba(0,0,0,.45)');gd.addColorStop(1,'rgba(0,0,0,0)');cx.fillStyle=gd;cx.fillRect(0,0,128,128);
+const sh=new THREE.Mesh(new THREE.PlaneGeometry(6,6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false}));
+sh.rotation.x=-Math.PI/2;sh.position.y=-.42;scene.add(sh);
+
+// interaction
+let drag=false,lastX=0,vel=0,angle=0;
+canvas.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;canvas.setPointerCapture(e.pointerId);canvas.style.cursor='grabbing';});
+canvas.addEventListener('pointermove',e=>{if(!drag)return;vel=(e.clientX-lastX)*.01;angle+=vel;lastX=e.clientX;});
+const end=()=>{drag=false;canvas.style.cursor='grab';};
+canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  renderer.setSize(w,h,false);camera.aspect=w/h;
+  camera.position.z=w/h<1?11:8.2;camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);resize();
+
+const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clock=new THREE.Clock();
+(function loop(){
+  const t=clock.getElapsedTime();
+  if(!drag&&!still)angle+=.012;
+  spin.rotation.y=angle;
+  head.position.x=Math.sin(t*3)*.06;
+  pigeon.position.y=Math.abs(Math.sin(t*3))*.03;
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
